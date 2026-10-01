@@ -22,3 +22,7 @@ LOCKOUT_MINUTES = int(os.getenv("LOCKOUT_MINUTES", 15))
 # Algoritmos
 JWT_ALGORITHM = "HS256"
 BCRYPT_ROUNDS = 12
+
+# Secure para poder mandar coockies por HTTP
+ENV = os.getenv("ENV", "dev")
+SECURE_COOKIE = ENV != "dev"
