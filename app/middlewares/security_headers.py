@@ -8,6 +8,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
 
+
+        # No aplicar CSP a la documentación (Swagger UI usa CDN)
+        if request.url.path in ("/docs", "/redoc", "/openapi.json"):
+            return response
+
+
         # Evita que el navegador adivine el tipo de contenido
         response.headers["X-Content-Type-Options"] = "nosniff"
 

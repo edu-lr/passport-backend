@@ -1,25 +1,21 @@
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
-from fastapi import Response
+from fastapi import Response, Request, HTTPException, status
 from sqlalchemy.orm import Session as DBSession
 
 from app.config import SESSION_EXPIRE_HOURS, SECURE_COOKIE
 from app.models import Session, User
 
 COOKIE_NAME = "passport_session"
+CSRF_COOKIE_NAME = "csrf_token"
 
 
 def create_session(db: DBSession, user: User) -> Session:
-    """
-    Crea una sesión persistente para el usuario:
-    - Genera un session_id aleatorio.
-    - Genera un csrf_token aleatorio (se usará en Fase 6).
-    - Guarda la sesión en la BD con expiración.
-    """
     session_id = secrets.token_urlsafe(32)
     csrf_token = secrets.token_urlsafe(32)
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=SESSION_EXPIRE_HOURS)
+    # utcnow() → naive, coherente con cómo SQLite guarda las fechas
+    expires_at = datetime.utcnow() + timedelta(hours=SESSION_EXPIRE_HOURS)
 
     session = Session(
         id=session_id,
@@ -34,15 +30,8 @@ def create_session(db: DBSession, user: User) -> Session:
 
 
 def set_session_cookie(response: Response, session: Session) -> None:
-    """
-    Setea la cookie de sesión con flags de seguridad.
-    Normaliza expires_at a UTC aware porque SQLite lo guarda como naive.
-    """
-    expires_at = session.expires_at
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-
-    max_age = int((expires_at - datetime.now(timezone.utc)).total_seconds())
+    # Ambas fechas naive → se pueden restar
+    max_age = int((session.expires_at - datetime.utcnow()).total_seconds())
 
     response.set_cookie(
         key=COOKIE_NAME,
@@ -54,6 +43,26 @@ def set_session_cookie(response: Response, session: Session) -> None:
         path="/",
     )
 
+    response.set_cookie(
+        key=CSRF_COOKIE_NAME,
+        value=session.csrf_token,
+        max_age=max_age,
+        httponly=False,
+        secure=SECURE_COOKIE,
+        samesite="lax",
+        path="/",
+    )
+
+
 def clear_session_cookie(response: Response) -> None:
-    """Borra la cookie de sesión en el cliente."""
     response.delete_cookie(key=COOKIE_NAME, path="/")
+    response.delete_cookie(key=CSRF_COOKIE_NAME, path="/")
+
+
+def validate_csrf(request: Request, session: Session) -> None:
+    header_token = request.headers.get("X-CSRF-Token")
+    if not header_token or not secrets.compare_digest(header_token, session.csrf_token):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CSRF token inválido o ausente",
+        )

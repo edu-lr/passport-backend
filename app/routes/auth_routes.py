@@ -1,4 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
+
+from app.auth.brute_force import (
+    check_lockout,
+    register_failed_attempt,
+    reset_attempts,
+)
+
 from sqlalchemy.orm import Session as DBSession
 
 from datetime import datetime, timezone
@@ -56,33 +63,44 @@ def register(payload: UserRegister, db: DBSession = Depends(get_db)):
 @router.post("/login", response_model=None)
 def login(
     payload: LoginRequest,
+    request: Request,
     response: Response,
     db: DBSession = Depends(get_db),
 ):
-    # 1. Buscar usuario
+    # IP del cliente
+    ip = request.client.host if request.client else "unknown"
+
+    # 1. Verificar bloqueo antes de nada
+    check_lockout(db, payload.email, ip)
+
+    # 2. Buscar usuario
     user = db.query(User).filter(User.email == payload.email).first()
 
-    # 2. Verificar existencia y contraseña (mismo mensaje para no filtrar info)
+    # 3. Verificar credenciales
     if not user or not verify_password(payload.password, user.password_hash):
+        register_failed_attempt(db, payload.email, ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales inválidas",
         )
 
-    # 3. Verificar que la cuenta esté activa
+    # 4. Cuenta activa
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="La cuenta está desactivada",
         )
 
-    # 4. Modo cookie
+    # 5. Login exitoso → limpiar intentos
+    reset_attempts(db, payload.email, ip)
+
+    # 6. Modo cookie
     if payload.auth_type == AuthType.COOKIE:
         session = create_session(db, user)
         set_session_cookie(response, session)
         return UserOut.model_validate(user)
 
-    # 5. Modo JWT
+    # 7. Modo JWT
     token, expires_in = create_access_token(user)
     return TokenResponse(access_token=token, expires_in=expires_in)
 
