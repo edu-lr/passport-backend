@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from jose import  JWTError , jwt
+from jose import jwt
 
 from app.config import JWT_SECRET_KEY, JWT_ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 

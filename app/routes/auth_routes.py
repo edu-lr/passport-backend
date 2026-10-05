@@ -1,27 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
-
-from app.auth.brute_force import (
-    check_lockout,
-    register_failed_attempt,
-    reset_attempts,
+from fastapi import (
+    APIRouter,
+    Cookie,
+    Depends,
+    HTTPException,
+    Request,
+    Response,
+    status,
 )
-
 from sqlalchemy.orm import Session as DBSession
 
-from datetime import datetime, timezone
-from app.models import User, Role, Session as SessionModel
-
-from fastapi import Cookie
-from app.auth.cookies import (
-    create_session,
-    set_session_cookie,
-    clear_session_cookie,
-    COOKIE_NAME,
-)
-from app.models import User, Role, Session as SessionModel
-
 from app.database import get_db
-from app.models import User, Role
+from app.models import User, Role, Session as SessionModel
 from app.schemas import (
     UserRegister,
     UserOut,
@@ -29,9 +18,19 @@ from app.schemas import (
     TokenResponse,
     AuthType,
 )
+from app.auth.brute_force import (
+    check_lockout,
+    register_failed_attempt,
+    reset_attempts,
+)
+from app.auth.cookies import (
+    create_session,
+    set_session_cookie,
+    clear_session_cookie,
+    COOKIE_NAME,
+)
 from app.auth.hashing import hash_password, verify_password
 from app.auth.jwt_handler import create_access_token
-from app.auth.cookies import create_session, set_session_cookie
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

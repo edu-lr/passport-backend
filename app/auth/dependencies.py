@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import Depends, HTTPException, status, Cookie, Header
 from sqlalchemy.orm import Session as DBSession

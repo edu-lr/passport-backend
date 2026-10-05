@@ -4,7 +4,6 @@ from fastapi import FastAPI
 from app.database import Base, engine
 from app import models  # importa los modelos para que se registren en Base
 
-from app.routes import auth_routes
 from app.routes import auth_routes, user_routes, admin_routes
 
 from app.middlewares.security_headers import SecurityHeadersMiddleware
