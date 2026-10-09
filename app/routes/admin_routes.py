@@ -26,12 +26,15 @@ def delete_user(
     db: DBSession = Depends(get_db),
 ):
     """Elimina un usuario y todas sus sesiones."""
+
+    # Evitar que se no haya administrador
     if user_id == current_admin.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No puedes eliminar tu propia cuenta de administrador",
         )
 
+    # Buscar usuario y error si no existe
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(

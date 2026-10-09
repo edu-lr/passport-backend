@@ -37,21 +37,24 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 def register(payload: UserRegister, db: DBSession = Depends(get_db)):
+    
     # Verificar si el email ya existe
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
-        raise HTTPException(
+        raise HTTPException(   # lanzar error si sí
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El email ya está registrado",
         )
 
-    # Crear el usuario
+    # Crear el usuario si no
     new_user = User(
         email=payload.email,
         password_hash=hash_password(payload.password),
         role=Role.USUARIO,
         is_active=True,
     )
+
+    # anñadir a la db y devolver el nuevo usuario
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -104,6 +107,7 @@ def login(
     return TokenResponse(access_token=token, expires_in=expires_in)
 
 
+# Borrar session en caso de cookie
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(
     response: Response,

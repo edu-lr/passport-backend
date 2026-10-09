@@ -11,17 +11,18 @@ from app.auth.cookies import COOKIE_NAME
 # Métodos que NO cambian estado → no requieren CSRF
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
-# Rutas exentas (no hay sesión todavía)
+# Rutas no vulnerables (no hay sesión todavía)
 EXEMPT_PATHS = {"/auth/login", "/auth/register"}
 
 
+# Middleware para validar el token CSRF
 class CSRFMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # 1. Solo validar métodos que cambian estado
         if request.method in SAFE_METHODS:
             return await call_next(request)
 
-        # 2. Rutas exentas
+        # 2. Rutas no vulnerables
         if request.url.path in EXEMPT_PATHS:
             return await call_next(request)
 
@@ -30,7 +31,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         if auth_header.lower().startswith("bearer "):
             return await call_next(request)
 
-        # 4. Si no hay cookie de sesión, no hay nada que proteger
+        # 4. Si no hay cookie de sesión, no hay nada que proteger, no tiene usuario
         session_id = request.cookies.get(COOKIE_NAME)
         if not session_id:
             return await call_next(request)

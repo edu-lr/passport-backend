@@ -5,8 +5,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Seguridad
-SECRET_KEY = os.getenv("SECRET_KEY")
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+# Secreto base para derivar la clave de cifrado JWE (A256GCM)
+JWE_SECRET_KEY = os.getenv("JWE_SECRET_KEY")
 
 # Base de datos
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./passport.db")

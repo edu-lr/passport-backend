@@ -2,7 +2,7 @@ from datetime import datetime
 
 from fastapi import Depends, HTTPException, status, Cookie, Header
 from sqlalchemy.orm import Session as DBSession
-from jose import JWTError
+from jwcrypto.common import JWException
 
 from app.database import get_db
 from app.models import User, Role, Session as SessionModel
@@ -10,6 +10,7 @@ from app.auth.cookies import COOKIE_NAME
 from app.auth.jwt_handler import decode_access_token
 
 
+# Obtener session por Cookie
 def _get_user_from_session(db: DBSession, session_id: str) -> User:
     """Valida una sesión de cookie y devuelve el usuario."""
     session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
@@ -19,7 +20,7 @@ def _get_user_from_session(db: DBSession, session_id: str) -> User:
             detail="Sesión inválida",
         )
 
-    # Comparar fechas naive (SQLite guarda sin tz)
+    # Comparar fechas y borra y rechaza si ya expiro
     if session.expires_at < datetime.utcnow():
         # Limpieza: borrar la sesión expirada
         db.delete(session)
@@ -28,7 +29,7 @@ def _get_user_from_session(db: DBSession, session_id: str) -> User:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Sesión expirada",
         )
-
+    # si no encuentra el usuario lanza error, si sí devuelve el usuario
     user = db.query(User).filter(User.id == session.user_id).first()
     if not user:
         raise HTTPException(
@@ -37,17 +38,21 @@ def _get_user_from_session(db: DBSession, session_id: str) -> User:
         )
     return user
 
-
+# Obtener session por JWT
 def _get_user_from_jwt(db: DBSession, token: str) -> User:
     """Valida un JWT y devuelve el usuario."""
-    try:
+
+    try:           # decodifica el token y obtiene el payload con el user_id
         payload = decode_access_token(token)
-    except JWTError:
+
+    # Si no es valido lanza error 401
+    except (JWException, ValueError, KeyError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido o expirado",
         )
 
+    # Se extrae el user_id y lanza error si no es valido
     user_id = payload.get("sub")
     if not user_id:
         raise HTTPException(
@@ -55,6 +60,7 @@ def _get_user_from_jwt(db: DBSession, token: str) -> User:
             detail="Token inválido",
         )
 
+    # Se busca el usuario en la db y devuelve error si no es valido
     user = db.query(User).filter(User.id == int(user_id)).first()
     if not user:
         raise HTTPException(
@@ -63,17 +69,13 @@ def _get_user_from_jwt(db: DBSession, token: str) -> User:
         )
     return user
 
-
+# Obtener usuario actual (Primero se intenta por cookie luego por JWT)
 def get_current_user(
     db: DBSession = Depends(get_db),
     session_id: str | None = Cookie(default=None, alias=COOKIE_NAME),
     authorization: str | None = Header(default=None),
 ) -> User:
-    """
-    Resuelve la identidad del usuario.
-    Prioridad: cookie > JWT.
-    Lanza 401 si no hay credenciales válidas.
-    """
+    
     user: User | None = None
 
     # 1. Intentar por cookie
